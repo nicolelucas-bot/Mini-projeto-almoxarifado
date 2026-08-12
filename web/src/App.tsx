@@ -1,114 +1,64 @@
-import { useEffect, useState } from "react";
-import type { Ferramenta } from "./tipos";
+import { useState } from "react";
+import type { Ferramenta, StatusFerramenta } from "./tipos";
+import { useFerramentas } from "./useFerramentas";
+import { removerFerramenta } from "./api";
+import ListaFerramentas from "./ListaFerramentas";
+import FormularioFerramenta from "./FormularioFerramenta";
 import "./App.css";
 
-const URL_API = "http://localhost:3000";
-
 export default function App() {
-  const [ferramentas, setFerramentas] = useState<Ferramenta[]>([]);
-  const [carregando, setCarregando] = useState(true);
-  const [erro, setErro] = useState<string | null>(null);
+  const [filtro, setFiltro] = useState<StatusFerramenta | "">("");
+  const [emEdicao, setEmEdicao] = useState<Ferramenta | null>(null);
 
-  const [nome, setNome] = useState("");
-  const [quantidade, setQuantidade] = useState("");
-  const [salvando, setSalvando] = useState(false);
-  const [mensagem, setMensagem] = useState<string | null>(null);
+  const { ferramentas, carregando, erro, recarregar } = useFerramentas(filtro);
 
-  useEffect(() => {
-    async function carregar() {
-      try {
-        const resposta = await fetch(`${URL_API}/ferramentas`);
-        if (!resposta.ok) {
-          throw new Error("Falha ao carregar");
-        }
-        const dados: Ferramenta[] = await resposta.json();
-        setFerramentas(dados);
-      } catch {
-        setErro("Nao foi possivel carregar as ferramentas. A API esta rodando?");
-      } finally {
-        setCarregando(false);
-      }
-    }
-    carregar();
-  }, []);
-
-  async function cadastrar(evento: React.FormEvent) {
-    evento.preventDefault();
-    setSalvando(true);
-    setMensagem(null);
-
-    try {
-      const resposta = await fetch(`${URL_API}/ferramentas`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome, quantidade: Number(quantidade) }),
-      });
-
-      const corpo = await resposta.json();
-
-      if (!resposta.ok) {
-        setMensagem(corpo.erro ?? "Erro ao cadastrar");
-        return;
-      }
-
-      setFerramentas((atual) => [...atual, corpo as Ferramenta]);
-      setMensagem("Ferramenta cadastrada.");
-      setNome("");
-      setQuantidade("");
-    } catch {
-      setMensagem("Nao foi possivel salvar. Tente novamente.");
-    } finally {
-      setSalvando(false);
-    }
-  }
-
-  async function remover(id: number) {
+  async function aoRemover(id: number) {
     const confirmou = window.confirm("Remover esta ferramenta?");
     if (!confirmou) return;
 
-    const resposta = await fetch(`${URL_API}/ferramentas/${id}`, {
-      method: "DELETE",
-    });
-
-    if (resposta.ok) {
-      setFerramentas((atual) => atual.filter((f) => f.id !== id));
+    await removerFerramenta(id);
+    if (emEdicao?.id === id) {
+      setEmEdicao(null);
     }
+    recarregar();
   }
-
-  if (carregando) return <p>Carregando ferramentas...</p>;
-  if (erro) return <p>{erro}</p>;
 
   return (
     <main>
       <h1>Almoxarifado — Ferramentas</h1>
 
-      <form onSubmit={cadastrar}>
-        <input
-          placeholder="Nome da ferramenta"
-          value={nome}
-          onChange={(e) => setNome(e.target.value)}
-        />
-        <input
-          type="number"
-          placeholder="Quantidade"
-          value={quantidade}
-          onChange={(e) => setQuantidade(e.target.value)}
-        />
-        <button type="submit" disabled={salvando}>
-          {salvando ? "Salvando..." : "Cadastrar"}
-        </button>
-      </form>
+      <FormularioFerramenta
+        emEdicao={emEdicao}
+        aoConcluir={() => {
+          setEmEdicao(null);
+          recarregar();
+        }}
+        aoCancelar={() => setEmEdicao(null)}
+      />
 
-      {mensagem && <p>{mensagem}</p>}
+      <label>
+        Filtrar por status:
+        <select
+          value={filtro}
+          onChange={(e) => setFiltro(e.target.value as StatusFerramenta | "")}
+        >
+          <option value="">Todas</option>
+          <option value="disponivel">Disponivel</option>
+          <option value="em_uso">Em uso</option>
+          <option value="manutencao">Manutencao</option>
+        </select>
+      </label>
 
-      <ul>
-        {ferramentas.map((f) => (
-          <li key={f.id}>
-            {f.nome} — {f.quantidade} un. — {f.status}
-            <button onClick={() => remover(f.id)}>Remover</button>
-          </li>
-        ))}
-      </ul>
+      {carregando && <p>Carregando ferramentas...</p>}
+      {erro && <p role="alert">{erro}</p>}
+
+      {!carregando && !erro && (
+        <ListaFerramentas
+          ferramentas={ferramentas}
+          aoEditar={setEmEdicao}
+          aoRemover={aoRemover}
+        />
+      )}
     </main>
   );
 }
