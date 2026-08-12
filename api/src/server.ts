@@ -54,20 +54,24 @@ app.post("/ferramentas", (req, res) => {
 // ATUALIZAR
 app.put("/ferramentas/:id", (req, res) => {
   const id = Number(req.params.id);
-  const indice = ferramentas.findIndex((f) => f.id === id);
-
-  if (indice === -1) {
-    return res.status(404).json({ erro: "Ferramenta nao encontrada" });
-  }
-
   const { nome, quantidade, status } = req.body;
   const atual = ferramentas[indice]!;
 
+  // As MESMAS regras do POST — validacao consistente nas duas rotas
+  if (typeof nome !== "string" || nome.trim() === "") {
+    return res.status(400).json({ erro: "O campo nome e obrigatorio" });
+  }
+
+  if (typeof quantidade !== "number" || quantidade < 0) {
+    return res.status(400).json({ erro: "quantidade deve ser um numero maior ou igual a zero" });
+  }
+
   const atualizada: Ferramenta = {
     id: atual.id,
-    nome: typeof nome === "string" && nome.trim() !== "" ? nome.trim() : atual.nome,
-    quantidade: typeof quantidade === "number" ? quantidade : atual.quantidade,
+    nome: nome.trim(),
+    quantidade,
     status: status ?? atual.status,
+  };
   };
 
   ferramentas[indice] = atualizada;
